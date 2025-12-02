@@ -1,0 +1,155 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+import timm
+from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, f1_score
+import matplotlib.pyplot as plt
+
+
+def main():
+    # ==========================
+    # 🔧 CONFIG
+    # ==========================
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}, GPU: {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else "CPU mode")
+
+    train_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/train"
+    val_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/valid"
+    num_classes = 11
+    batch_size = 16
+    epochs = 10
+    lr = 5e-5          # трохи менший LR, бо модель вже pretrained і head складніший
+    image_size = 224
+
+    # ==========================
+    # 🧠 DATASET
+    # ==========================
+    train_transforms = transforms.Compose([
+        transforms.Resize(int(image_size * 1.1)),
+        transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(15),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
+    ])
+
+    val_transforms = transforms.Compose([
+        transforms.Resize(int(image_size * 1.1)),
+        transforms.CenterCrop(image_size),
+        transforms.ToTensor(),
+        transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
+    ])
+
+    train_data = datasets.ImageFolder(train_dir, transform=train_transforms)
+    val_data = datasets.ImageFolder(val_dir, transform=val_transforms)
+
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False, num_workers=0)
+
+    print(f"Classes: {train_data.classes}")
+
+    # ==========================
+    # 🧩 MODEL (Modified Vision Transformer)
+    # ==========================
+    model = timm.create_model(
+        "vit_base_patch16_224",
+        pretrained=True,
+        num_classes=num_classes,
+        drop_rate=0.0,
+        drop_path_rate=0.1  # stochastic depth
+    )
+
+    in_features = model.head.in_features
+    model.head = nn.Sequential(
+        nn.LayerNorm(in_features),
+        nn.Linear(in_features, 256),
+        nn.GELU(),
+        nn.Dropout(0.3),
+        nn.Linear(256, num_classes)
+    )
+
+    model.to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+
+    # ==========================
+    # 📈 TRAINING LOOP
+    # ==========================
+    train_losses, val_losses, val_accs = [], [], []
+
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0.0
+        preds, targets = [], []
+
+        loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
+        for images, labels in loop:
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            preds.extend(torch.argmax(outputs, 1).cpu().numpy())
+            targets.extend(labels.cpu().numpy())
+
+        acc = accuracy_score(targets, preds)
+        f1 = f1_score(targets, preds, average='weighted')
+        train_losses.append(train_loss / len(train_loader))
+
+        # ==== VALIDATION ====
+        model.eval()
+        val_loss = 0.0
+        val_preds, val_targets = [], []
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                val_preds.extend(torch.argmax(outputs, 1).cpu().numpy())
+                val_targets.extend(labels.cpu().numpy())
+
+        val_acc = accuracy_score(val_targets, val_preds)
+        val_f1 = f1_score(val_targets, val_preds, average='weighted')
+        val_losses.append(val_loss / len(val_loader))
+        val_accs.append(val_acc)
+
+        print(f"Epoch {epoch+1}/{epochs} | "
+              f"Train Loss: {train_loss/len(train_loader):.4f}, Acc: {acc:.4f}, F1: {f1:.4f} | "
+              f"Val Loss: {val_loss/len(val_loader):.4f}, Acc: {val_acc:.4f}, F1: {val_f1:.4f}")
+
+    # ==========================
+    # 📊 VISUALIZATION
+    # ==========================
+    plt.figure(figsize=(8, 4))
+    plt.plot(train_losses, label="Train Loss")
+    plt.plot(val_losses, label="Val Loss")
+    plt.title("Loss Curve")
+    plt.legend()
+    plt.show()
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(val_accs, label="Validation Accuracy")
+    plt.title("Accuracy Curve")
+    plt.legend()
+    plt.show()
+
+    # ==========================
+    # 💾 SAVE MODEL
+    # ==========================
+    torch.save(model.state_dict(), "vit_tomato_model_mod.pth")
+    print("Model saved as vit_tomato_model_mod.pth ✅")
+
+
+if __name__ == "__main__":
+    main()
