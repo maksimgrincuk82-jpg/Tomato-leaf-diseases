@@ -10,24 +10,16 @@ from sklearn.metrics import accuracy_score, f1_score
 import matplotlib.pyplot as plt
 
 
-def main():
-    # ==========================
-    # 🔧 CONFIG
-    # ==========================
+def main():   
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}, GPU: {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else "CPU mode")
-
-    train_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/train"
-    val_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/valid"
+   
     num_classes = 11
     batch_size = 16
     epochs = 10
-    lr = 5e-5          # трохи менший LR, бо модель вже pretrained і head складніший
+    lr = 5e-5        
     image_size = 224
 
-    # ==========================
-    # 🧠 DATASET
-    # ==========================
     train_transforms = transforms.Compose([
         transforms.Resize(int(image_size * 1.1)),
         transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
@@ -53,15 +45,12 @@ def main():
 
     print(f"Classes: {train_data.classes}")
 
-    # ==========================
-    # 🧩 MODEL (Modified Vision Transformer)
-    # ==========================
     model = timm.create_model(
         "vit_base_patch16_224",
         pretrained=True,
         num_classes=num_classes,
         drop_rate=0.0,
-        drop_path_rate=0.1  # stochastic depth
+        drop_path_rate=0.1  
     )
 
     in_features = model.head.in_features
@@ -78,9 +67,6 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
-    # ==========================
-    # 📈 TRAINING LOOP
-    # ==========================
     train_losses, val_losses, val_accs = [], [], []
 
     for epoch in range(epochs):
@@ -106,7 +92,6 @@ def main():
         f1 = f1_score(targets, preds, average='weighted')
         train_losses.append(train_loss / len(train_loader))
 
-        # ==== VALIDATION ====
         model.eval()
         val_loss = 0.0
         val_preds, val_targets = [], []
@@ -128,9 +113,6 @@ def main():
               f"Train Loss: {train_loss/len(train_loader):.4f}, Acc: {acc:.4f}, F1: {f1:.4f} | "
               f"Val Loss: {val_loss/len(val_loader):.4f}, Acc: {val_acc:.4f}, F1: {val_f1:.4f}")
 
-    # ==========================
-    # 📊 VISUALIZATION
-    # ==========================
     plt.figure(figsize=(8, 4))
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Val Loss")
@@ -144,12 +126,10 @@ def main():
     plt.legend()
     plt.show()
 
-    # ==========================
-    # 💾 SAVE MODEL
-    # ==========================
     torch.save(model.state_dict(), "vit_tomato_model_mod.pth")
-    print("Model saved as vit_tomato_model_mod.pth ✅")
+    print("Model saved as vit_tomato_model_mod.pth")
 
 
 if __name__ == "__main__":
     main()
+
