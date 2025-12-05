@@ -8,25 +8,17 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, f1_score
 import matplotlib.pyplot as plt
 
-
 def main():
-    # ==========================
-    # 🔧 CONFIG
-    # ==========================
+  
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}, GPU: {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else "CPU mode")
 
-    train_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/train"
-    val_dir = "C:/Users/zalut/PycharmProjects/TomatoGPU_ViT/tomato_dataset/valid"
-    num_classes = 11      # змінити, якщо інша кількість класів
+    num_classes = 11      
     batch_size = 16
     epochs = 10
     lr = 1e-4
     image_size = 224
 
-    # ==========================
-    # 🧠 DATASET
-    # ==========================
     train_transforms = transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.RandomHorizontalFlip(),
@@ -44,23 +36,17 @@ def main():
     train_data = datasets.ImageFolder(train_dir, transform=train_transforms)
     val_data = datasets.ImageFolder(val_dir, transform=val_transforms)
 
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)  # 👈 тут 0 для Windows
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)  
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False, num_workers=0)
 
     print(f"Classes: {train_data.classes}")
 
-    # ==========================
-    # 🧩 MODEL (Vision Transformer)
-    # ==========================
     model = timm.create_model("vit_base_patch16_224", pretrained=True, num_classes=num_classes)
     model.to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr)
 
-    # ==========================
-    # 📈 TRAINING LOOP
-    # ==========================
     train_losses, val_losses, val_accs = [], [], []
 
     for epoch in range(epochs):
@@ -86,7 +72,7 @@ def main():
         f1 = f1_score(targets, preds, average='weighted')
         train_losses.append(train_loss / len(train_loader))
 
-        # ==== VALIDATION ====
+
         model.eval()
         val_loss = 0.0
         val_preds, val_targets = [], []
@@ -108,9 +94,6 @@ def main():
               f"Train Loss: {train_loss/len(train_loader):.4f}, Acc: {acc:.4f}, F1: {f1:.4f} | "
               f"Val Loss: {val_loss/len(val_loader):.4f}, Acc: {val_acc:.4f}, F1: {val_f1:.4f}")
 
-    # ==========================
-    # 📊 VISUALIZATION
-    # ==========================
     plt.figure(figsize=(8,4))
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Val Loss")
@@ -124,13 +107,9 @@ def main():
     plt.legend()
     plt.show()
 
-    # ==========================
-    # 💾 SAVE MODEL
-    # ==========================
     torch.save(model.state_dict(), "vit_tomato_model.pth")
     print("Model saved as vit_tomato_model.pth ✅")
 
 
 if __name__ == "__main__":
     main()
-
