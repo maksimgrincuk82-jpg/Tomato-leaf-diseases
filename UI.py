@@ -6,16 +6,12 @@ import tkinter as tk
 from tkinter import filedialog, Label, Button
 import numpy as np
 
-# --- завантаження моделі ---
-MODEL_PATH = r"C:\Users\zalut\PycharmProjects\TomatoGPU_ViT\vit_tomato_model.pth"
 
-# якщо ти використовувала timm:
 import timm
 model = timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=11)
 model.load_state_dict(torch.load(MODEL_PATH, map_location='cpu'))
 model.eval()
 
-# --- список класів (можна змінити під свій датасет) ---
 labels = [
     "Bacterial_spot",
     "Early_blight",
@@ -30,7 +26,6 @@ labels = [
     "Tomato_Yellow_Leaf_Curl_Virus"
 ]
 
-# --- передобробка ---
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -50,10 +45,6 @@ def predict(image_path):
         conf, pred = torch.max(probs, 1)
     return labels[pred.item()], conf.item()
 
-
-
-
-# --- Tkinter UI ---
 class App:
     def __init__(self, root):
         self.root = root
@@ -79,20 +70,19 @@ class App:
         if not file_path:
             return
 
-        # показуємо фото
         img = Image.open(file_path).resize((300, 300))
         photo = ImageTk.PhotoImage(img)
         self.img_label.configure(image=photo)
         self.img_label.image = photo
 
-        # передбачення
+
         label, conf = predict(file_path)
         self.result_label.config(
             text=f"Результат: {label}\nЙмовірність: {conf:.2f}"
         )
 
-# --- запуск ---
 root = tk.Tk()
 app = App(root)
 root.mainloop()
+
 
